@@ -1,4 +1,3 @@
-use rscterm_core::Error;
 use rscterm_core::error::Result;
 use tracing::info;
 

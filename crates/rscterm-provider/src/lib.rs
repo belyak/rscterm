@@ -1,5 +1,4 @@
-use rscterm_core::error::Result;
-use rscterm_core::{Error, Provider};
+use rscterm_core::Provider;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

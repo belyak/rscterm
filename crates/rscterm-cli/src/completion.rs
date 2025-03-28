@@ -1,4 +1,4 @@
-use rscterm_core::error::Result;
+// No imports needed as we're not using any external types
 
 pub struct AIbitatHelper {
     commands: Vec<String>,

@@ -1,36 +1,33 @@
 use rscterm_core::{Provider, Error};
 use rscterm_core::error::Result;
-use rscterm_provider::LMStudioProvider;
 use colored::*;
 use crossterm::{
     cursor::{Hide, Show},
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    execute,
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
 use std::io::{self, Write};
+use crate::commands::Command;
+use crate::completion::AIbitatHelper;
 
 pub mod commands;
 pub mod completion;
 
-use commands::Command;
-use completion::AIbitatHelper;
-
 pub struct CliInterface {
-    provider: Box<dyn Provider>,
     current_team: Option<String>,
-    history: Vec<String>,
     show_progress: bool,
+    history: Vec<String>,
     helper: AIbitatHelper,
 }
 
 impl CliInterface {
-    pub fn new(provider: Box<dyn Provider>) -> Self {
+    pub fn new(_provider: Box<dyn Provider>) -> Self {
         Self {
-            provider,
             current_team: None,
-            history: Vec::new(),
             show_progress: true,
+            history: Vec::new(),
             helper: AIbitatHelper::new(),
         }
     }

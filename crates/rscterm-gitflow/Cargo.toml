@@ -1,0 +1,17 @@
+[package]
+name = "rscterm-gitflow"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+git2 = "0.18"
+chrono = "0.4"
+regex = "1.10"
+thiserror = "1.0"
+rscterm-core = { path = "../rscterm-core" }
