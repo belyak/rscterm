@@ -43,6 +43,8 @@ impl Completer for AIbitatHelper {
             "start-task",
             "chat",
             "exit",
+            "list-models",
+            "set-model",
         ];
 
         let line_parts: Vec<&str> = line[..pos].split_whitespace().collect();
@@ -63,17 +65,63 @@ impl Completer for AIbitatHelper {
         match line_parts.get(0) {
             Some(&"setup-team") => {
                 if line_parts.len() <= 2 {
-                    // No suggestions for team names, as they are user-defined
+                    // Provide default team suggestions
+                    completions.extend(vec![
+                        "research-team",
+                        "development-team",
+                        "design-team",
+                        "product-team",
+                        "qa-team"
+                    ].iter().filter(|team| {
+                        current_word.is_empty() || team.starts_with(current_word)
+                    }).map(|team| Pair {
+                        display: (*team).to_string(),
+                        replacement: (*team).to_string(),
+                    }));
                 }
             }
             Some(&"start-task") => {
                 if line_parts.len() <= 2 {
-                    // No suggestions for task descriptions, as they are user-defined
+                    // Provide default task suggestions
+                    completions.extend(vec![
+                        "research-market-trends",
+                        "develop-new-feature",
+                        "design-user-interface",
+                        "review-code-changes",
+                        "test-functionality",
+                        "develop-sokoban-game",
+                        "implement-game-logic",
+                        "create-game-assets",
+                        "optimize-game-performance",
+                        "add-game-features"
+                    ].iter().filter(|task| {
+                        current_word.is_empty() || task.starts_with(current_word)
+                    }).map(|task| Pair {
+                        display: (*task).to_string(),
+                        replacement: (*task).to_string(),
+                    }));
                 }
             }
             Some(&"chat") => {
                 if line_parts.len() <= 2 {
                     // No suggestions for chat messages, as they are user-defined
+                }
+            }
+            Some(&"set-model") => {
+                if line_parts.len() <= 2 {
+                    // Provide default model suggestions
+                    completions.extend(vec![
+                        "gemma-3-12b-it",
+                        "gemma-2b-it",
+                        "mistral-7b",
+                        "llama-2-7b",
+                        "codellama-7b"
+                    ].iter().filter(|model| {
+                        current_word.is_empty() || model.starts_with(current_word)
+                    }).map(|model| Pair {
+                        display: (*model).to_string(),
+                        replacement: (*model).to_string(),
+                    }));
                 }
             }
             Some(cmd) if line_parts.len() == 1 && !line.ends_with(' ') => {
@@ -119,9 +167,11 @@ impl Hinter for AIbitatHelper {
         }
 
         match line {
-            l if l.starts_with("setup-team") => Some(" <team-name>".to_string()),
-            l if l.starts_with("start-task") => Some(" <task-description>".to_string()),
-            l if l.starts_with("chat") => Some(" <message>".to_string()),
+            l if l.starts_with("setup-team") => Some(" Examples: research-team, development-team, design-team".to_string()),
+            l if l.starts_with("start-task") => Some(" Examples: develop-sokoban-game, implement-game-logic, create-game-assets".to_string()),
+            l if l.starts_with("chat") => Some(" Type your message".to_string()),
+            l if l.starts_with("set-model") => Some(" Examples: gemma-3-12b-it, mistral-7b, llama-2-7b".to_string()),
+            l if l.starts_with("list-models") => Some(" Shows available models in LM Studio".to_string()),
             _ => None,
         }
     }
@@ -200,6 +250,8 @@ mod tests {
         assert!(completions.iter().any(|c| c.replacement == "start-task"));
         assert!(completions.iter().any(|c| c.replacement == "chat"));
         assert!(completions.iter().any(|c| c.replacement == "exit"));
+        assert!(completions.iter().any(|c| c.replacement == "list-models"));
+        assert!(completions.iter().any(|c| c.replacement == "set-model"));
 
         // Test completion with space
         let (pos, completions) = helper.complete("help ", 5, &ctx).unwrap();
@@ -213,10 +265,21 @@ mod tests {
         let history = DefaultHistory::new();
         let ctx = Context::new(&history);
 
-        // Test setup-team command completion
+        // Test setup-team command completion with empty input
         let (pos, completions) = helper.complete("setup-team ", 11, &ctx).unwrap();
         assert_eq!(pos, 11);
-        assert!(completions.is_empty()); // No suggestions for team names
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.replacement == "research-team"));
+        assert!(completions.iter().any(|c| c.replacement == "development-team"));
+        assert!(completions.iter().any(|c| c.replacement == "design-team"));
+        assert!(completions.iter().any(|c| c.replacement == "product-team"));
+        assert!(completions.iter().any(|c| c.replacement == "qa-team"));
+
+        // Test setup-team command completion with partial input
+        let (pos, completions) = helper.complete("setup-team dev", 14, &ctx).unwrap();
+        assert_eq!(pos, 11);
+        assert_eq!(completions.len(), 1);
+        assert!(completions.iter().any(|c| c.replacement == "development-team"));
     }
 
     #[test]
@@ -225,10 +288,20 @@ mod tests {
         let history = DefaultHistory::new();
         let ctx = Context::new(&history);
 
-        // Test start-task command completion
+        // Test start-task command completion with empty input
         let (pos, completions) = helper.complete("start-task ", 11, &ctx).unwrap();
         assert_eq!(pos, 11);
-        assert!(completions.is_empty()); // No suggestions for task descriptions
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.replacement == "develop-sokoban-game"));
+        assert!(completions.iter().any(|c| c.replacement == "implement-game-logic"));
+        assert!(completions.iter().any(|c| c.replacement == "create-game-assets"));
+        assert!(completions.iter().any(|c| c.replacement == "optimize-game-performance"));
+        assert!(completions.iter().any(|c| c.replacement == "add-game-features"));
+
+        // Test start-task command completion with partial input
+        let (pos, completions) = helper.complete("start-task dev", 14, &ctx).unwrap();
+        assert_eq!(pos, 11);
+        assert!(completions.iter().any(|c| c.replacement == "develop-sokoban-game"));
     }
 
     #[test]
@@ -244,6 +317,32 @@ mod tests {
     }
 
     #[test]
+    fn test_model_commands() {
+        let helper = AIbitatHelper::new();
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
+
+        // Test set-model command completion with empty input
+        let (pos, completions) = helper.complete("set-model ", 10, &ctx).unwrap();
+        assert_eq!(pos, 10);
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.replacement == "gemma-3-12b-it"));
+        assert!(completions.iter().any(|c| c.replacement == "mistral-7b"));
+        assert!(completions.iter().any(|c| c.replacement == "llama-2-7b"));
+
+        // Test set-model command completion with partial input
+        let (pos, completions) = helper.complete("set-model gem", 13, &ctx).unwrap();
+        assert_eq!(pos, 10);
+        assert!(completions.iter().any(|c| c.replacement == "gemma-3-12b-it"));
+        assert!(completions.iter().any(|c| c.replacement == "gemma-2b-it"));
+
+        // Test list-models command completion
+        let (pos, completions) = helper.complete("list-models ", 12, &ctx).unwrap();
+        assert_eq!(pos, 12);
+        assert!(completions.is_empty());
+    }
+
+    #[test]
     fn test_hints() {
         let helper = AIbitatHelper::new();
         let history = DefaultHistory::new();
@@ -251,15 +350,23 @@ mod tests {
 
         // Test setup-team hint
         let hint = helper.hint("setup-team", 0, &ctx);
-        assert_eq!(hint, Some(" <team-name>".to_string()));
+        assert_eq!(hint, Some(" Examples: research-team, development-team, design-team".to_string()));
 
         // Test start-task hint
         let hint = helper.hint("start-task", 0, &ctx);
-        assert_eq!(hint, Some(" <task-description>".to_string()));
+        assert_eq!(hint, Some(" Examples: develop-sokoban-game, implement-game-logic, create-game-assets".to_string()));
 
         // Test chat hint
         let hint = helper.hint("chat", 0, &ctx);
-        assert_eq!(hint, Some(" <message>".to_string()));
+        assert_eq!(hint, Some(" Type your message".to_string()));
+
+        // Test set-model hint
+        let hint = helper.hint("set-model", 0, &ctx);
+        assert_eq!(hint, Some(" Examples: gemma-3-12b-it, mistral-7b, llama-2-7b".to_string()));
+
+        // Test list-models hint
+        let hint = helper.hint("list-models", 0, &ctx);
+        assert_eq!(hint, Some(" Shows available models in LM Studio".to_string()));
 
         // Test empty hint
         let hint = helper.hint("", 0, &ctx);

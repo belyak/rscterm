@@ -1,4 +1,5 @@
-use anyhow::Result;
+use rscterm_core::Error;
+use rscterm_core::error::Result;
 use tracing::info;
 
 #[derive(Debug)]
@@ -273,8 +274,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::CliInterface;
-    use crate::LMStudioProvider;
+    use aibitatr_provider::LMStudioProvider;
 
     #[test]
     fn test_command_parsing() {
@@ -373,17 +373,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_execution() {
-        #[cfg(test)]
-        let provider = LMStudioProvider::with_emulation(
+        let provider = Box::new(LMStudioProvider::new(
             "http://localhost:1234".to_string(),
             "test-model".to_string(),
-        );
-        #[cfg(not(test))]
-        let provider = LMStudioProvider::new(
-            "http://10.6.1.238:1234".to_string(),
-            "gemma-3-12b-it".to_string()
-        );
-        let mut cli = CliInterface::new(Box::new(provider));
+        ));
+        let mut cli = super::CliInterface::new(provider);
 
         // Test help command
         let result = Command::Help.execute(&mut cli).await;

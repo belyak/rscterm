@@ -34,3 +34,19 @@ chat "Hello "
 help
 setup-team my-team researcher programmer designer planner
 start-task Refactor the existing codebase
+help
+setup-team [research-team, development-team, design-team, ...]
+help
+setup-team Examples: research-team, development-team, design-team
+setup-team devops-ai-swe team
+start-task develop SOKOBAN game in rust as a new project in a subfolder.
+help
+help setup-team
+setup-team devops-cli-tooling-pro-team
+start-task: implement wrapper around github copilot via calling it through bash.
+start-task implement wrapper around github copilot via calling it through bash.
+help
+list-models
+help
+list-models
+set-model gemma-3-12b-it

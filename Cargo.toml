@@ -1,26 +1,39 @@
+[workspace]
+members = [
+    "crates/rscterm-cli",
+    "crates/rscterm-core",
+    "crates/rscterm-provider"
+]
+
+[workspace.dependencies]
+tokio = { version = "1.36.0", features = ["full"] }
+anyhow = "1.0.79"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
 [package]
-name = "aibitatr"
+name = "rscterm"
 version = "0.1.0"
 edition = "2021"
 authors = ["Your Name <your.email@example.com>"]
 description = "A minimalistic, compact, and high-performance Rust implementation of the AIbitat multi-agent conversation framework"
 
 [[bin]]
-name = "aibitatr"
-path = "src/bin/aibitatr.rs"
+name = "rscterm"
+path = "src/bin/rscterm.rs"
 
 [dependencies]
-tokio = { version = "1.36", features = ["full"] }
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
 thiserror = "1.0"
 async-trait = "0.1"
 futures = "0.3"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5", features = ["derive"] }
-anyhow = "1.0"
 colored = "2.1"
 crossterm = "0.27"
 ratatui = "0.26"
@@ -28,6 +41,8 @@ chrono = "0.4"
 rustyline = "13.0"
 shell-words = "1.1"
 indicatif = "0.17"
+rscterm-cli = { path = "crates/rscterm-cli" }
+rscterm-provider = { path = "crates/rscterm-provider" }
 
 [dev-dependencies]
 tokio-test = "0.4"
