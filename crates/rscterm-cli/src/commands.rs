@@ -17,78 +17,68 @@ pub enum Command {
     Chat { message: String },
     ListModels,
     SetModel { model: String },
+    Run,
     Unknown(String),
 }
 
 impl Command {
     pub fn from_input(input: &str) -> Self {
         let parts: Vec<&str> = input.split_whitespace().collect();
-        match parts.get(0).map(|s| *s) {
-            Some("help") => Command::Help,
-            Some("exit") => Command::Exit,
-            Some("clear") => Command::Clear,
-            Some("history") => Command::History,
-            Some("send") => {
+        let cmd = parts.get(0).map(|s| *s).unwrap_or("");
+        
+        match cmd {
+            "help" => Command::Help,
+            "exit" => Command::Exit,
+            "clear" => Command::Clear,
+            "history" => Command::History,
+            "send" => {
                 if parts.len() < 3 {
+                    Command::Send { channel: String::new(), message: String::new() }
+                } else {
                     Command::Send {
-                        channel: "".to_string(),
-                        message: "".to_string(),
+                        channel: parts[1].to_string(),
+                        message: parts[2..].join(" "),
                     }
-                } else {
-                    let channel = parts[1].to_string();
-                    let message = parts[2..].join(" ");
-                    Command::Send { channel, message }
                 }
             }
-            Some("list") => Command::List,
-            Some("agents") => Command::Agents,
-            Some("channels") => Command::Channels,
-            Some("setup-team") => {
+            "list" => Command::List,
+            "agents" => Command::Agents,
+            "channels" => Command::Channels,
+            "setup-team" => {
                 if parts.len() < 3 {
+                    Command::SetupTeam { name: String::new(), agents: vec![] }
+                } else {
                     Command::SetupTeam {
-                        name: "".to_string(),
-                        agents: vec![],
+                        name: parts[1].to_string(),
+                        agents: parts[2..].iter().map(|s| s.to_string()).collect(),
                     }
-                } else {
-                    let name = parts[1].to_string();
-                    let agents = parts[2..].iter().map(|s| s.to_string()).collect();
-                    Command::SetupTeam { name, agents }
                 }
             }
-            Some("start-task") => {
+            "start-task" => {
                 if parts.len() < 2 {
-                    Command::StartTask {
-                        task: "".to_string(),
-                    }
+                    Command::StartTask { task: String::new() }
                 } else {
-                    let task = parts[1..].join(" ");
-                    Command::StartTask { task }
+                    Command::StartTask { task: parts[1..].join(" ") }
                 }
             }
-            Some("toggle-progress") => Command::ToggleProgress,
-            Some("chat") => {
+            "toggle-progress" => Command::ToggleProgress,
+            "chat" => {
                 if parts.len() < 2 {
-                    Command::Chat {
-                        message: "".to_string(),
-                    }
+                    Command::Chat { message: String::new() }
                 } else {
-                    let message = parts[1..].join(" ");
-                    Command::Chat { message }
+                    Command::Chat { message: parts[1..].join(" ") }
                 }
             }
-            Some("list-models") => Command::ListModels,
-            Some("set-model") => {
+            "list-models" => Command::ListModels,
+            "set-model" => {
                 if parts.len() < 2 {
-                    Command::SetModel {
-                        model: "".to_string(),
-                    }
+                    Command::SetModel { model: String::new() }
                 } else {
-                    let model = parts[1].to_string();
-                    Command::SetModel { model }
+                    Command::SetModel { model: parts[1].to_string() }
                 }
             }
-            Some(cmd) => Command::Unknown(cmd.to_string()),
-            None => Command::Unknown("".to_string()),
+            "run" => Command::Run,
+            cmd => Command::Unknown(cmd.to_string()),
         }
     }
 
@@ -96,24 +86,13 @@ impl Command {
         match self {
             Command::Help => {
                 cli.print_message("system", "Available Commands:");
-                cli.print_message("system", "  help           - Show this help message");
-                cli.print_message("system", "  clear          - Clear the screen");
-                cli.print_message("system", "  history        - Show command history");
-                cli.print_message("system", "  send           - Send message to a channel (usage: send <channel> <message>)");
-                cli.print_message("system", "  list           - List available resources");
-                cli.print_message("system", "  agents         - List all agents");
-                cli.print_message("system", "  channels       - List all channels");
-                cli.print_message("system", "  setup-team     - Create a new team (usage: setup-team <n> <agent1> <agent2> ...)");
-                cli.print_message("system", "  start-task     - Start a new task (usage: start-task <task description>)");
-                cli.print_message("system", "  chat           - Start a direct chat (usage: chat <message>)");
-                cli.print_message("system", "  toggle-progress - Toggle progress display");
-                cli.print_message("system", "  list-models    - Show available models in LM Studio");
-                cli.print_message("system", "  set-model      - Change the current model (usage: set-model <model-name>)");
-                cli.print_message("system", "  exit           - Exit the program");
+                for (cmd, desc) in HELP_MESSAGES {
+                    cli.print_message("system", &format!("  {:<15} - {}", cmd, desc));
+                }
                 Ok(true)
             }
             Command::Exit => {
-                cli.print_success("Goodbye! 👋");
+                cli.print_success("Goodbye!");
                 Ok(false)
             }
             Command::Clear => {
@@ -135,31 +114,28 @@ impl Command {
                     Ok(true)
                 } else {
                     cli.print_message("system", &format!("Sending to {}: {}", channel, message));
-                    // TODO: Implement actual message sending
                     Ok(true)
                 }
             }
             Command::List => {
                 cli.print_message("system", "Available Resources:");
-                cli.print_message("system", "  - agents");
-                cli.print_message("system", "  - channels");
-                cli.print_message("system", "  - teams");
+                for resource in &["agents", "channels", "teams"] {
+                    cli.print_message("system", &format!("  - {}", resource));
+                }
                 Ok(true)
             }
             Command::Agents => {
                 cli.print_message("system", "Available Agents:");
-                cli.print_message("system", "  - researcher (Expert in gathering and analyzing information)");
-                cli.print_message("system", "  - programmer (Expert in coding and implementation)");
-                cli.print_message("system", "  - designer (Expert in UI/UX and visual design)");
-                cli.print_message("system", "  - planner (Expert in project planning and organization)");
-                cli.print_message("system", "  - reviewer (Expert in code review and quality assurance)");
+                for (agent, desc) in AGENT_DESCRIPTIONS {
+                    cli.print_message("system", &format!("  - {} ({})", agent, desc));
+                }
                 Ok(true)
             }
             Command::Channels => {
                 cli.print_message("system", "Available Channels:");
-                cli.print_message("system", "  - #general (General discussion)");
-                cli.print_message("system", "  - #tasks (Task-related discussions)");
-                cli.print_message("system", "  - #code (Code-related discussions)");
+                for (channel, desc) in CHANNEL_DESCRIPTIONS {
+                    cli.print_message("system", &format!("  - {} ({})", channel, desc));
+                }
                 Ok(true)
             }
             Command::SetupTeam { name, agents } => {
@@ -172,7 +148,6 @@ impl Command {
                     cli.print_success(&format!("Creating team '{}' with agents: {}", name, agents.join(", ")));
                     cli.set_current_team(name.clone());
                     
-                    // Use LLM for team setup responses
                     cli.simulate_agent_response("planner", &format!("Setting up team '{}' with {} agents", name, agents.len())).await?;
                     for agent in agents {
                         cli.simulate_agent_response(&agent, &format!("Ready to work on team '{}'", name)).await?;
@@ -186,23 +161,18 @@ impl Command {
                     cli.print_error("Usage: start-task <task description>");
                     cli.print_message("system", "Example: start-task Create a responsive web application");
                     Ok(true)
-                } else {
-                    if let Some(_team) = cli.get_current_team() {
-                        info!("Starting task: {}", task);
-                        cli.print_success(&format!("Starting task: {}", task));
-                        
-                        // Use LLM for task execution responses
-                        cli.simulate_agent_response("planner", &format!("Breaking down task: {}", task)).await?;
-                        cli.simulate_agent_response("researcher", "Gathering requirements and best practices").await?;
-                        cli.simulate_agent_response("designer", "Creating initial design concepts").await?;
-                        cli.simulate_agent_response("programmer", "Setting up project structure").await?;
-                        cli.simulate_agent_response("reviewer", "Reviewing initial setup").await?;
-                        
-                        Ok(true)
-                    } else {
-                        cli.print_error("No active team. Please create a team first using 'setup-team'");
-                        Ok(true)
+                } else if let Some(_team) = cli.get_current_team() {
+                    info!("Starting task: {}", task);
+                    cli.print_success(&format!("Starting task: {}", task));
+                    
+                    for (agent, msg) in TASK_START_MESSAGES {
+                        cli.simulate_agent_response(agent, msg).await?;
                     }
+                    
+                    Ok(true)
+                } else {
+                    cli.print_error("No active team. Please create a team first using 'setup-team'");
+                    Ok(true)
                 }
             }
             Command::ToggleProgress => {
@@ -219,21 +189,24 @@ impl Command {
                 } else {
                     info!("Starting direct chat: {}", message);
                     cli.print_success(&format!("Starting chat: {}", message));
-                    
-                    // Use LLM for direct chat response
                     cli.simulate_agent_response("assistant", &message).await?;
-                    
                     Ok(true)
                 }
             }
             Command::ListModels => {
-                cli.print_message("system", "Available Models in LM Studio:");
-                cli.print_message("system", "  - gemma-3-12b-it (Gemma 3 12B Instruct)");
-                cli.print_message("system", "  - gemma-2b-it (Gemma 2B Instruct)");
-                cli.print_message("system", "  - mistral-7b (Mistral 7B)");
-                cli.print_message("system", "  - llama-2-7b (Llama 2 7B)");
-                cli.print_message("system", "  - codellama-7b (CodeLlama 7B)");
-                Ok(true)
+                match cli.get_provider().get_loaded_models().await {
+                    Ok(models) => {
+                        cli.print_message("system", "Available Models in LM Studio:");
+                        for model in models {
+                            cli.print_message("system", &format!("  - {}", model));
+                        }
+                        Ok(true)
+                    }
+                    Err(e) => {
+                        cli.print_error(&format!("Failed to fetch models: {}", e));
+                        Ok(true)
+                    }
+                }
             }
             Command::SetModel { model } => {
                 if model.is_empty() {
@@ -241,20 +214,29 @@ impl Command {
                     cli.print_message("system", "Example: set-model gemma-3-12b-it");
                     Ok(true)
                 } else {
-                    let valid_models = vec![
-                        "gemma-3-12b-it",
-                        "gemma-2b-it",
-                        "mistral-7b",
-                        "llama-2-7b",
-                        "codellama-7b"
-                    ];
-                    
-                    if valid_models.contains(&model.as_str()) {
-                        cli.print_success(&format!("Switching to model: {}", model));
-                        // TODO: Implement actual model switching in LMStudioProvider
+                    match cli.get_provider().set_model(&model).await {
+                        Ok(_) => {
+                            cli.print_success(&format!("Switched to model: {}", model));
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            cli.print_error(&format!("Failed to switch model: {}", e));
+                            Ok(true)
+                        }
+                    }
+                }
+            }
+            Command::Run => {
+                let current_model = cli.get_provider().get_current_model();
+                cli.print_success(&format!("Running model {} in terminal mode...", current_model));
+                
+                match cli.get_provider().run_terminal().await {
+                    Ok(_) => {
+                        cli.print_success("Terminal session ended");
                         Ok(true)
-                    } else {
-                        cli.print_error(&format!("Invalid model: {}. Use 'list-models' to see available models.", model));
+                    }
+                    Err(e) => {
+                        cli.print_error(&format!("Failed to run terminal mode: {}", e));
                         Ok(true)
                     }
                 }
@@ -269,6 +251,46 @@ impl Command {
         }
     }
 }
+
+const HELP_MESSAGES: &[(&str, &str)] = &[
+    ("help", "Show this help message"),
+    ("clear", "Clear the screen"),
+    ("history", "Show command history"),
+    ("send", "Send message to a channel (usage: send <channel> <message>)"),
+    ("list", "List available resources"),
+    ("agents", "List all agents"),
+    ("channels", "List all channels"),
+    ("setup-team", "Create a new team (usage: setup-team <n> <agent1> <agent2> ...)"),
+    ("start-task", "Start a new task (usage: start-task <task description>)"),
+    ("chat", "Start a direct chat (usage: chat <message>)"),
+    ("toggle-progress", "Toggle progress display"),
+    ("list-models", "Show available models in LM Studio"),
+    ("set-model", "Change the current model (usage: set-model <model-name>)"),
+    ("run", "Run the current model in terminal mode"),
+    ("exit", "Exit the program"),
+];
+
+const AGENT_DESCRIPTIONS: &[(&str, &str)] = &[
+    ("researcher", "Expert in gathering and analyzing information"),
+    ("programmer", "Expert in coding and implementation"),
+    ("designer", "Expert in UI/UX and visual design"),
+    ("planner", "Expert in project planning and organization"),
+    ("reviewer", "Expert in code review and quality assurance"),
+];
+
+const CHANNEL_DESCRIPTIONS: &[(&str, &str)] = &[
+    ("#general", "General discussion"),
+    ("#tasks", "Task-related discussions"),
+    ("#code", "Code-related discussions"),
+];
+
+const TASK_START_MESSAGES: &[(&str, &str)] = &[
+    ("planner", "Breaking down task"),
+    ("researcher", "Gathering requirements and best practices"),
+    ("designer", "Creating initial design concepts"),
+    ("programmer", "Setting up project structure"),
+    ("reviewer", "Reviewing initial setup"),
+];
 
 #[cfg(test)]
 mod tests {
@@ -491,5 +513,122 @@ mod tests {
         } else {
             panic!("Expected empty SetModel command");
         }
+    }
+
+    #[tokio::test]
+    async fn test_model_commands() {
+        let provider = Box::new(LMStudioProvider::new(
+            "http://localhost:1234".to_string(),
+            "gemma-3-12b-it".to_string(),
+        ));
+        let mut cli = super::CliInterface::new(provider);
+
+        // Test list-models command
+        let result = Command::ListModels.execute(&mut cli).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test set-model command with empty model
+        let cmd = Command::SetModel {
+            model: "".to_string(),
+        };
+        let result = cmd.execute(&mut cli).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test set-model command with valid model
+        let cmd = Command::SetModel {
+            model: "gemma-3-12b-it".to_string(),
+        };
+        let result = cmd.execute(&mut cli).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test set-model command with invalid model
+        let cmd = Command::SetModel {
+            model: "invalid-model".to_string(),
+        };
+        let result = cmd.execute(&mut cli).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test model switching sequence
+        let valid_models = vec![
+            "gemma-3-12b-it",
+            "gemma-2b-it",
+            "mistral-7b",
+            "llama-2-7b",
+            "codellama-7b",
+        ];
+
+        for model in valid_models {
+            let cmd = Command::SetModel {
+                model: model.to_string(),
+            };
+            let result = cmd.execute(&mut cli).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_model_command_parsing() {
+        // Test list-models command parsing
+        assert!(matches!(Command::from_input("list-models"), Command::ListModels));
+
+        // Test set-model command parsing with valid model
+        if let Command::SetModel { model } = Command::from_input("set-model gemma-3-12b-it") {
+            assert_eq!(model, "gemma-3-12b-it");
+        } else {
+            panic!("Expected SetModel command");
+        }
+
+        // Test set-model command parsing with empty model
+        if let Command::SetModel { model } = Command::from_input("set-model") {
+            assert!(model.is_empty());
+        } else {
+            panic!("Expected SetModel command with empty model");
+        }
+
+        // Test set-model command parsing with multiple words
+        if let Command::SetModel { model } = Command::from_input("set-model invalid model name") {
+            assert_eq!(model, "invalid");
+        } else {
+            panic!("Expected SetModel command");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_model_interaction_with_other_commands() {
+        let provider = Box::new(LMStudioProvider::new(
+            "http://localhost:1234".to_string(),
+            "gemma-3-12b-it".to_string(),
+        ));
+        let mut cli = super::CliInterface::new(provider);
+
+        // Set up a team and start a task
+        let setup_cmd = Command::SetupTeam {
+            name: "test-team".to_string(),
+            agents: vec!["researcher".to_string(), "programmer".to_string()],
+        };
+        assert!(setup_cmd.execute(&mut cli).await.unwrap());
+
+        // Switch model
+        let model_cmd = Command::SetModel {
+            model: "mistral-7b".to_string(),
+        };
+        assert!(model_cmd.execute(&mut cli).await.unwrap());
+
+        // Start a task with the new model
+        let task_cmd = Command::StartTask {
+            task: "Test task".to_string(),
+        };
+        assert!(task_cmd.execute(&mut cli).await.unwrap());
+
+        // Send a chat message with the new model
+        let chat_cmd = Command::Chat {
+            message: "Test message".to_string(),
+        };
+        assert!(chat_cmd.execute(&mut cli).await.unwrap());
     }
 } 

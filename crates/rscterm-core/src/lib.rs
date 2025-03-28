@@ -11,8 +11,11 @@ pub use types::*;
 #[async_trait]
 pub trait Provider: Send + Sync + Debug {
     async fn send_message(&self, message: &str) -> Result<String, Error>;
-    async fn set_model(&self, model: &str) -> Result<(), Error>;
+    async fn set_model(&mut self, model: &str) -> Result<(), Error>;
     async fn list_models(&self) -> Result<Vec<String>, Error>;
+    fn get_current_model(&self) -> String;
+    async fn run_terminal(&mut self) -> Result<(), Error>;
+    async fn get_loaded_models(&self) -> Result<Vec<String>, Error>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

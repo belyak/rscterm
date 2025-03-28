@@ -11,4 +11,10 @@ tracing-subscriber.workspace = true
 colored = "2.1"
 crossterm = "0.27"
 rscterm-core = { path = "../rscterm-core" }
-rscterm-provider = { path = "../rscterm-provider" } 
+rscterm-provider = { path = "../rscterm-provider" }
+ratatui = "0.26"
+chrono = "0.4"
+rustyline = "13.0"
+shell-words = "1.1"
+indicatif = "0.17"
+rand = "0.8" 

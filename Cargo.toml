@@ -48,6 +48,7 @@ chrono = "0.4"
 rustyline = "13.0"
 shell-words = "1.1"
 indicatif = "0.17"
+rand = "0.8"
 rscterm-cli = { path = "crates/rscterm-cli" }
 rscterm-provider = { path = "crates/rscterm-provider" }
 rscterm-gitflow = { path = "crates/rscterm-gitflow" }

@@ -1,34 +1,39 @@
-use rscterm_core::{Provider, Error};
+pub mod commands;
+pub mod completion;
+
+use commands::Command;
+use rscterm_core::{Error, Provider};
 use rscterm_core::error::Result;
+use std::io::{self, Write, stdout};
 use colored::*;
 use crossterm::{
     cursor::{Hide, Show},
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    execute,
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
-use std::io::{self, Write};
-use crate::commands::Command;
 use crate::completion::AIbitatHelper;
-
-pub mod commands;
-pub mod completion;
+use std::time::Duration;
+use tokio::time::sleep;
+use rand::Rng;
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct CliInterface {
     current_team: Option<String>,
     show_progress: bool,
     history: Vec<String>,
     helper: AIbitatHelper,
+    provider: Box<dyn Provider>,
 }
 
 impl CliInterface {
-    pub fn new(_provider: Box<dyn Provider>) -> Self {
+    pub fn new(provider: Box<dyn Provider>) -> Self {
         Self {
             current_team: None,
             show_progress: true,
             history: Vec::new(),
             helper: AIbitatHelper::new(),
+            provider,
         }
     }
 
@@ -48,22 +53,38 @@ impl CliInterface {
         self.show_progress = show;
     }
 
-    pub fn print_message(&self, role: &str, message: &str) {
-        let prefix = match role {
-            "system" => "🤖".blue(),
-            "user" => "👤".green(),
-            "assistant" => "🤖".yellow(),
-            _ => "💬".white(),
-        };
-        println!("{} {}", prefix, message);
+    pub fn get_provider(&mut self) -> &mut Box<dyn Provider> {
+        &mut self.provider
     }
 
-    pub fn print_success(&self, message: &str) {
-        println!("{} {}", "✅".green(), message.green());
+    pub fn print_message(&self, sender: &str, message: &str) {
+        let color = match sender {
+            "system" => Color::White,
+            "error" => Color::Red,
+            "success" => Color::Green,
+            "warning" => Color::Yellow,
+            "info" => Color::Blue,
+            _ => Color::White,
+        };
+
+        let prefix = match sender {
+            "system" => "[SYS]",
+            "error" => "[ERR]",
+            "success" => "[OK]",
+            "warning" => "[WARN]",
+            "info" => "[INFO]",
+            _ => "[???]",
+        };
+
+        println!("{} {}", prefix.color(color), message);
     }
 
     pub fn print_error(&self, message: &str) {
-        println!("{} {}", "❌".red(), message.red());
+        self.print_message("error", message);
+    }
+
+    pub fn print_success(&self, message: &str) {
+        self.print_message("success", message);
     }
 
     pub fn clear_screen(&self) -> Result<()> {
@@ -74,15 +95,64 @@ impl CliInterface {
     }
 
     pub fn print_welcome(&self) {
-        self.print_message("system", "Welcome to AIbitat! 🚀");
-        self.print_message("system", "Type 'help' to see available commands");
-        self.print_message("system", "Use TAB for command completion");
+        println!("===============================================");
+        println!("              RSC Terminal CLI                  ");
+        println!("===============================================");
+        println!("Type 'help' for available commands");
+        println!("===============================================");
     }
 
     pub async fn simulate_agent_response(&self, agent: &str, message: &str) -> Result<()> {
-        if self.show_progress {
+        if !self.show_progress {
             self.print_message(agent, message);
+            return Ok(());
         }
+
+        let mut stdout = stdout();
+        let progress = ProgressBar::new(100);
+        progress.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{bar:40.cyan/blue}] {percent}% {msg}")
+                .unwrap()
+                .progress_chars("=>-"),
+        );
+
+        let mut rng = rand::thread_rng();
+        let mut current = 0;
+        let total_steps = 100;
+        let step_delay = Duration::from_millis(20);
+
+        // Customize progress bar based on agent type
+        let (color, prefix) = match agent {
+            "planner" => ("yellow", "[PLAN]"),
+            "researcher" => ("blue", "[RES]"),
+            "programmer" => ("green", "[DEV]"),
+            "designer" => ("magenta", "[UI]"),
+            "reviewer" => ("cyan", "[REV]"),
+            "assistant" => ("white", "[AI]"),
+            _ => ("white", "[???]"),
+        };
+
+        progress.set_message(format!("{} {}: {}", prefix, agent, message));
+        progress.set_style(
+            ProgressStyle::default_bar()
+                .template(&format!("{{spinner:.{}}} [{{bar:40.{}/blue}}] {{percent}}% {{msg}}", 
+                    color,
+                    color))
+                .unwrap()
+                .progress_chars("=>-"),
+        );
+
+        while current < total_steps {
+            current += rng.gen_range(1..=5);
+            current = current.min(total_steps);
+            progress.set_position(current);
+            stdout.flush().map_err(|e| Error::Io(e))?;
+            sleep(step_delay).await;
+        }
+
+        progress.finish_with_message(format!("{} {}: {}", prefix, agent, message));
+        stdout.flush().map_err(|e| Error::Io(e))?;
         Ok(())
     }
 
@@ -169,7 +239,7 @@ impl CliInterface {
                 }
 
                 // Clear line and show prompt
-                print!("\r\x1B[K🤖 AIbitat > {}", input);
+                print!("\r\x1B[K[RSC] > {}", input);
                 if !suggestions.is_empty() {
                     print!(" [{}]", suggestions.join(", ").blue());
                 }
