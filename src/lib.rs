@@ -1,7 +1,25 @@
+pub mod cli;
+pub mod lmstudio;
+pub mod mock;
+
 use std::collections::HashMap;
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
+
+// Re-export common types
+pub use crate::llm::LLMProvider;
+pub use lmstudio::LMStudioProvider;
+pub use mock::MockLLMProvider;
+
+mod llm {
+    use super::*;
+
+    #[async_trait]
+    pub trait LLMProvider: Send + Sync + std::fmt::Debug {
+        async fn generate_response(&self, prompt: &str) -> Result<String>;
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum AIbitatError {
@@ -38,11 +56,6 @@ pub struct Channel {
     pub participants: Vec<String>,
 }
 
-#[async_trait]
-pub trait LLMProvider: Send + Sync {
-    async fn generate_response(&self, prompt: &str) -> Result<String>;
-}
-
 pub struct AIbitat {
     pub agents: HashMap<String, Agent>,
     pub channels: HashMap<String, Channel>,
@@ -54,6 +67,12 @@ impl AIbitat {
         Self {
             agents: HashMap::new(),
             channels: HashMap::new(),
+            #[cfg(test)]
+            llm_provider: Box::new(LMStudioProvider::with_emulation(
+                "http://localhost:1234".to_string(),
+                "test-model".to_string(),
+            )),
+            #[cfg(not(test))]
             llm_provider: Box::new(LMStudioProvider::default()),
         }
     }
@@ -96,67 +115,93 @@ impl AIbitat {
     }
 }
 
-#[derive(Default)]
-pub struct LMStudioProvider {
-    // TODO: Add configuration options for LM-Studio
-}
-
-#[async_trait]
-impl LLMProvider for LMStudioProvider {
-    async fn generate_response(&self, prompt: &str) -> Result<String> {
-        // TODO: Implement actual LM-Studio integration
-        // For now, return a mock response based on the prompt
-        Ok(format!("Mock response to: {}", prompt))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
     async fn test_basic_message_flow() {
-        let mut aibitat = AIbitat::new();
-        
-        // Create a test agent
-        let agent = Agent {
-            name: "test".to_string(),
-            role: "test role".to_string(),
-            interrupt_always: false,
-            max_rounds: None,
-        };
-        
-        // Create a test channel
-        let channel = Channel {
-            name: "test".to_string(),
-            participants: vec!["test".to_string()],
-        };
-        
-        // Set up the test environment
-        aibitat = aibitat
-            .with_agent("test", agent)
-            .with_channel("test", channel);
-        
+        let aibitat = AIbitat::new()
+            .with_agent("planner", Agent {
+                name: "planner".to_string(),
+                role: "planner".to_string(),
+                interrupt_always: false,
+                max_rounds: None,
+            })
+            .with_channel("test-channel", Channel {
+                name: "test-channel".to_string(),
+                participants: vec!["planner".to_string()],
+            });
+
         let message = Message {
-            from: "test".to_string(),
-            to: "test".to_string(),
-            content: "test".to_string(),
+            from: "planner".to_string(),
+            to: "test-channel".to_string(),
+            content: "You are planner, an AI agent. Your task: Test task.".to_string(),
         };
-        
-        assert!(aibitat.start(message).await.is_ok());
+
+        let result = aibitat.start(message).await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_invalid_sender() {
-        let aibitat = AIbitat::new();
-        
+        let aibitat = AIbitat::new()
+            .with_channel("test-channel", Channel {
+                name: "test-channel".to_string(),
+                participants: vec!["planner".to_string()],
+            });
+
         let message = Message {
-            from: "nonexistent".to_string(),
-            to: "test".to_string(),
-            content: "test".to_string(),
+            from: "invalid".to_string(),
+            to: "test-channel".to_string(),
+            content: "Test message".to_string(),
         };
-        
+
         let result = aibitat.start(message).await;
         assert!(matches!(result, Err(AIbitatError::AgentError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_invalid_channel() {
+        let aibitat = AIbitat::new()
+            .with_agent("planner", Agent {
+                name: "planner".to_string(),
+                role: "planner".to_string(),
+                interrupt_always: false,
+                max_rounds: None,
+            });
+
+        let message = Message {
+            from: "planner".to_string(),
+            to: "invalid".to_string(),
+            content: "Test message".to_string(),
+        };
+
+        let result = aibitat.start(message).await;
+        assert!(matches!(result, Err(AIbitatError::ChannelError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_sender_not_in_channel() {
+        let aibitat = AIbitat::new()
+            .with_agent("planner", Agent {
+                name: "planner".to_string(),
+                role: "planner".to_string(),
+                interrupt_always: false,
+                max_rounds: None,
+            })
+            .with_channel("test-channel", Channel {
+                name: "test-channel".to_string(),
+                participants: vec!["other".to_string()],
+            });
+
+        let message = Message {
+            from: "planner".to_string(),
+            to: "test-channel".to_string(),
+            content: "Test message".to_string(),
+        };
+
+        let result = aibitat.start(message).await;
+        assert!(matches!(result, Err(AIbitatError::ChannelError(_))));
     }
 }

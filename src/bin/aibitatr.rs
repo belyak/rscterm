@@ -1,5 +1,5 @@
-mod cli;
 use anyhow::Result;
+use aibitatr::cli::runner::CliRunner;
 use tracing_subscriber::{self, EnvFilter};
 
 #[tokio::main]
@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let mut runner = cli::runner::CliRunner::new();
+    let mut runner = CliRunner::new();
     runner.run().await?;
     Ok(())
 } 

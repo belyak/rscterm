@@ -1,0 +1,36 @@
+#V2
+help
+list
+agents
+send --help
+send help
+send -h
+send
+list
+help
+send
+send #general Hello world of Agents!
+channels
+channels help
+channels -h
+agents
+setup-team my-team researcher programmer designer planner
+start-task Create a minimalistic rust sokoban game in terminal
+help
+ssetup-team
+setup-team my-team researcher programmer designer planner
+start-task Create a minimalistic rust sokoban game in terminal
+help
+channels
+channels -h
+start-task -h
+start-task
+start-task Refactor the existing codebase
+setup-team my-team researcher programmer designer planner
+setup-team web-team researcher programmer
+chat hello
+chat
+chat "Hello "
+help
+setup-team my-team researcher programmer designer planner
+start-task Refactor the existing codebase
