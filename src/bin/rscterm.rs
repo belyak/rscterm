@@ -1,6 +1,5 @@
 use rscterm_cli::CliInterface;
 use rscterm_provider::LMStudioProvider;
-use rscterm_core::Provider;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
