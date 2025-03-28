@@ -55,7 +55,9 @@ rscterm-provider = { path = "crates/rscterm-provider" }
 rscterm-gitflow = { path = "crates/rscterm-gitflow" }
 rscterm-core = { path = "crates/rscterm-core" }
 rscterm-completion = { path = "crates/rscterm-completion" }
+tempfile = "3.8"
 
 [dev-dependencies]
 tokio-test = "0.4"
 assert_matches = "1.5"
+tempfile = "3.8"

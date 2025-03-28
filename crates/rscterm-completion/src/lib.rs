@@ -14,13 +14,13 @@ pub struct CompletionState {
     models: HashSet<String>,
 }
 
-pub struct AIbitatHelper {
+pub struct CLIHelper {
     pub highlighter: MatchingBracketHighlighter,
     pub hinter: HistoryHinter,
     state: Arc<Mutex<CompletionState>>,
 }
 
-impl AIbitatHelper {
+impl CLIHelper {
     pub fn new() -> Self {
         Self {
             highlighter: MatchingBracketHighlighter::new(),
@@ -38,6 +38,12 @@ impl AIbitatHelper {
     pub fn add_task(&mut self, task: String) {
         if let Ok(mut state) = self.state.lock() {
             state.tasks.insert(task);
+        }
+    }
+
+    pub fn remove_task(&mut self, task: &str) {
+        if let Ok(mut state) = self.state.lock() {
+            state.tasks.remove(task);
         }
     }
 
@@ -62,7 +68,7 @@ impl AIbitatHelper {
     }
 }
 
-impl Completer for AIbitatHelper {
+impl Completer for CLIHelper {
     type Candidate = Pair;
 
     fn complete(
@@ -156,7 +162,7 @@ impl Completer for AIbitatHelper {
     }
 }
 
-impl Hinter for AIbitatHelper {
+impl Hinter for CLIHelper {
     type Hint = String;
 
     fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<String> {
@@ -177,7 +183,7 @@ impl Hinter for AIbitatHelper {
     }
 }
 
-impl Highlighter for AIbitatHelper {
+impl Highlighter for CLIHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
@@ -199,7 +205,7 @@ impl Highlighter for AIbitatHelper {
     }
 }
 
-impl Validator for AIbitatHelper {
+impl Validator for CLIHelper {
     fn validate(
         &self,
         _ctx: &mut ValidationContext,
@@ -208,7 +214,7 @@ impl Validator for AIbitatHelper {
     }
 }
 
-impl Helper for AIbitatHelper {}
+impl Helper for CLIHelper {}
 
 #[cfg(test)]
 mod tests {
@@ -217,41 +223,49 @@ mod tests {
 
     #[test]
     fn test_helper_creation() {
-        let helper = AIbitatHelper::new();
-        let state = helper.state.lock().unwrap();
-        assert!(state.teams.is_empty());
-        assert!(state.tasks.is_empty());
-        assert!(state.models.is_empty());
+        let helper = CLIHelper::new();
+        assert!(helper.state.lock().unwrap().teams.is_empty());
+        assert!(helper.state.lock().unwrap().tasks.is_empty());
+        assert!(helper.state.lock().unwrap().models.is_empty());
     }
 
     #[test]
     fn test_add_team() {
-        let mut helper = AIbitatHelper::new();
+        let mut helper = CLIHelper::new();
         helper.add_team("test-team".to_string());
-        let state = helper.state.lock().unwrap();
-        assert!(state.teams.contains("test-team"));
+        assert!(helper.state.lock().unwrap().teams.contains("test-team"));
     }
 
     #[test]
     fn test_add_task() {
-        let mut helper = AIbitatHelper::new();
+        let mut helper = CLIHelper::new();
         helper.add_task("test-task".to_string());
-        let state = helper.state.lock().unwrap();
-        assert!(state.tasks.contains("test-task"));
+        assert!(helper.state.lock().unwrap().tasks.contains("test-task"));
+    }
+
+    #[test]
+    fn test_remove_task() {
+        let mut helper = CLIHelper::new();
+        helper.add_task("test-task".to_string());
+        assert!(helper.state.lock().unwrap().tasks.contains("test-task"));
+        helper.remove_task("test-task");
+        assert!(!helper.state.lock().unwrap().tasks.contains("test-task"));
     }
 
     #[test]
     fn test_update_models() {
-        let mut helper = AIbitatHelper::new();
-        helper.update_models(vec!["model1".to_string(), "model2".to_string()]);
+        let mut helper = CLIHelper::new();
+        let models = vec!["model1".to_string(), "model2".to_string()];
+        helper.update_models(models.clone());
         let state = helper.state.lock().unwrap();
+        assert_eq!(state.models.len(), 2);
         assert!(state.models.contains("model1"));
         assert!(state.models.contains("model2"));
     }
 
     #[test]
     fn test_command_completion() {
-        let helper = AIbitatHelper::new();
+        let helper = CLIHelper::new();
         let history = DefaultHistory::new();
         let ctx = Context::new(&history);
 
@@ -268,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_hints() {
-        let helper = AIbitatHelper::new();
+        let helper = CLIHelper::new();
         let history = DefaultHistory::new();
         let ctx = Context::new(&history);
 

@@ -11,7 +11,7 @@ use crossterm::{
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
-use rscterm_completion::AIbitatHelper;
+use rscterm_completion::CLIHelper;
 use rustyline::completion::{Completer, Pair};
 use rustyline::Context;
 use rustyline::history::DefaultHistory;
@@ -24,7 +24,7 @@ pub struct CliInterface {
     current_team: Option<String>,
     show_progress: bool,
     history: Vec<String>,
-    helper: AIbitatHelper,
+    helper: CLIHelper,
     provider: Box<dyn Provider>,
 }
 
@@ -34,7 +34,7 @@ impl CliInterface {
             current_team: None,
             show_progress: true,
             history: Vec::new(),
-            helper: AIbitatHelper::new(),
+            helper: CLIHelper::new(),
             provider,
         }
     }
