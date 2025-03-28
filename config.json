@@ -1,0 +1,31 @@
+{
+  "agents": [
+    {
+      "name": "assistant",
+      "role": "You are a helpful AI assistant.",
+      "interrupt_always": true,
+      "max_rounds": 10
+    },
+    {
+      "name": "user",
+      "role": "You are a human user.",
+      "interrupt_always": true,
+      "max_rounds": null
+    }
+  ],
+  "channels": [
+    {
+      "name": "general",
+      "participants": ["assistant", "user"]
+    },
+    {
+      "name": "private",
+      "participants": ["assistant"]
+    }
+  ],
+  "llm": {
+    "provider": "lmstudio",
+    "url": "http://localhost:1234",
+    "model": "local-model"
+  }
+} 

@@ -1,0 +1,111 @@
+# AIbitat Rust Port Project Requirements
+
+## Project Overview
+
+This project aims to create a minimalistic, compact, and high-performance Rust implementation of the AIbitat multi-agent conversation framework. The port will focus on core functionality while optimizing for speed and resource efficiency, with LM-Studio as the primary LLM provider integration.
+
+## Core Requirements
+
+### 1. Framework Architecture
+
+- Implement a stateless, extensible framework that enables interaction between multiple AI agents
+- Maintain the core concept of agents communicating in channels (similar to Slack)
+- Support human interruption and participation in agent conversations
+- Preserve the event-driven architecture from the original TypeScript implementation
+
+### 2. Agent System
+
+- Create a flexible agent configuration system with customizable roles and behaviors
+- Implement direct messaging between agents
+- Support channel-based communication for multiple agents
+- Allow configuration of interruption patterns (ALWAYS, NEVER)
+- Maintain the concept of maximum conversation rounds to prevent infinite loops
+
+### 3. LLM Integration
+
+- Implement LM-Studio as the primary LLM provider
+- Design a provider-agnostic interface for future model support
+- Support streaming responses for more interactive conversations
+- Implement proper error handling for API communication
+
+### 4. Function Calling
+
+- Allow agents to call external functions and incorporate results into conversations
+- Support function registration and parameter validation
+- Implement proper JSON serialization/deserialization for function parameters
+- Provide a clean API for registering custom functions
+
+### 5. Performance Optimization
+
+- Optimize for speed and minimal resource usage
+- Implement efficient async processing for agent interactions
+- Use Rust's ownership model to minimize memory overhead
+- Implement proper error handling that won't crash the application
+
+## Technical Specifications
+
+### Language & Dependencies
+
+- Rust edition 2021
+- Minimal external dependencies
+- Async runtime (tokio or similar) for handling concurrent operations
+- Serde for JSON serialization/deserialization
+- Reqwest or similar for HTTP communication with LLM APIs
+
+### API Design
+
+- Maintain a similar API structure to the original TypeScript implementation
+- Use Rust idioms and patterns for a native feel
+- Provide builder patterns for configuration
+- Use type safety to prevent runtime errors
+- Implement proper trait boundaries for extensibility
+
+### Example Minimal Implementation
+
+```rust
+use aibitat::{AIbitat, Agent, Channel};
+use aibitat::plugins::cli::Cli;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let aibitat = AIbitat::new()
+        .with_plugin(Cli::default())
+        .with_agent("client", Agent::new().with_interrupt_always().with_role("You are a human assistant..."))
+        .with_agent("mathematician", Agent::new().with_role("You are a Mathematician..."))
+        .with_channel("management", vec!["mathematician", "client"]);
+
+    aibitat.start(Message {
+        from: "client",
+        to: "management",
+        content: "How much is 2 + 2?".to_string(),
+    }).await?;
+
+    Ok(())
+}
+```
+
+## Development Priorities
+
+1. Core agent and messaging functionality
+2. LM-Studio integration
+3. CLI interface for human interaction
+4. Function calling capabilities
+5. Channel-based multi-agent conversations
+6. Error handling and recovery
+7. Performance optimization
+
+## Deliverables
+
+1. Rust crate implementing the AIbitat framework
+2. Minimal CLI example similar to the original project's examples
+3. Documentation with usage examples
+4. Performance benchmarks comparing to the original implementation
+
+## Non-Requirements
+
+- Web browsing capabilities (can be added as a separate plugin later)
+- File interaction beyond the CLI plugin needs
+- Support for providers beyond LM-Studio in the initial implementation
+- Advanced caching mechanisms
+
+This minimalistic approach focuses on creating a fast, efficient Rust implementation of AIbitat's core functionality while maintaining compatibility with the original design philosophy and API patterns.
