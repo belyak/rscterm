@@ -302,7 +302,7 @@ impl CliInterface {
         Ok(())
     }
 
-    fn get_current_branch(&self) -> Result<String> {
+    pub fn get_current_branch(&self) -> Result<String> {
         let output = Command::new("git")
             .args(&["rev-parse", "--abbrev-ref", "HEAD"])
             .output()
