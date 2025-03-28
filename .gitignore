@@ -17,3 +17,27 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# Rust specific
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Workspace content (but keep the directory)
+/workspace/*
+!/workspace/.gitkeep
+
+# Environment specific
+.env
+.env.local
+.env.*.local
+
+# OS specific
+.DS_Store
+Thumbs.db
