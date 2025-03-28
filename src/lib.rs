@@ -18,6 +18,7 @@ mod llm {
     #[async_trait]
     pub trait LLMProvider: Send + Sync + std::fmt::Debug {
         async fn generate_response(&self, prompt: &str) -> Result<String>;
+        async fn list_models(&self) -> Result<Vec<String>>;
     }
 }
 

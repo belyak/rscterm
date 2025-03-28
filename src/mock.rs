@@ -33,6 +33,16 @@ impl LLMProvider for MockLLMProvider {
             format!("I am {}, and I'll help with this task.", agent)
         }))
     }
+
+    async fn list_models(&self) -> Result<Vec<String>> {
+        Ok(vec![
+            "gemma-3-12b-it".to_string(),
+            "gemma-2b-it".to_string(),
+            "mistral-7b".to_string(),
+            "llama-2-7b".to_string(),
+            "codellama-7b".to_string(),
+        ])
+    }
 }
 
 #[cfg(test)]
@@ -63,5 +73,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response, "I am custom, and I'll help with this task.");
+
+        // Test list_models
+        let models = provider.list_models().await.unwrap();
+        assert!(!models.is_empty());
+        assert!(models.contains(&"gemma-3-12b-it".to_string()));
+        assert!(models.contains(&"mistral-7b".to_string()));
     }
 } 

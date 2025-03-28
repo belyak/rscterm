@@ -25,7 +25,7 @@
   ],
   "llm": {
     "provider": "lmstudio",
-    "url": "http://localhost:1234",
+    "url": "http://10.6.1.238:1234",
     "model": "local-model"
   }
 } 

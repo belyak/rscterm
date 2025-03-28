@@ -51,4 +51,16 @@ fn find_git_root(start_path: &PathBuf) -> Result<PathBuf> {
             anyhow::bail!("Could not find Git repository root");
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_git_root() {
+        let current_dir = env::current_dir().unwrap();
+        let result = find_git_root(&current_dir);
+        assert!(result.is_ok());
+    }
 } 

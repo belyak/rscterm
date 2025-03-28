@@ -18,6 +18,8 @@ pub enum GitFlowError {
     BranchTypeMismatch { expected: String, actual: String },
     #[error("Internal error: {0}")]
     InternalError(String),
+    #[error("IO error: {0}")]
+    IOError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +61,7 @@ pub struct GitFlowAgent {
 }
 
 impl GitFlowAgent {
-    pub fn new(repo_path: &Path) -> Result<Self> {
+    pub fn new(repo_path: &Path) -> Result<Self, GitFlowError> {
         let repo = Repository::open(repo_path)?;
         Ok(Self {
             repo,
@@ -106,13 +108,14 @@ impl GitFlowAgent {
     }
 
     pub fn ensure_gitflow_compliance(&self) -> Result<(), GitFlowError> {
-        let current_branch = self.get_current_branch_type()
-            .map_err(|e| GitFlowError::InternalError(e.to_string()))?;
+        let head = self.repo.head()?;
+        let branch_name = head.shorthand().unwrap_or("");
         
-        match current_branch {
-            GitFlowBranchType::Unknown => Err(GitFlowError::InvalidGitFlowBranch),
-            _ => Ok(()),
+        if !is_gitflow_branch(branch_name) {
+            return Err(GitFlowError::InvalidGitFlowBranch);
         }
+        
+        Ok(())
     }
 
     pub fn create_feature(&self, name: &str) -> Result<(), GitFlowError> {
@@ -150,9 +153,30 @@ impl GitFlowAgent {
     }
 }
 
+fn is_gitflow_branch(branch: &str) -> bool {
+    let valid_prefixes = ["feature/", "bugfix/", "hotfix/", "release/"];
+    valid_prefixes.iter().any(|prefix| branch.starts_with(prefix))
+}
+
+#[allow(dead_code)]
+fn validate_branch_name(branch: &str) -> bool {
+    // Check if it's a valid GitFlow branch
+    if !is_gitflow_branch(branch) {
+        return false;
+    }
+
+    // Check for invalid characters
+    if branch.contains(' ') || branch.contains('.') || branch.contains('_') {
+        return false;
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
     use std::fs;
     use tempfile::tempdir;
 
@@ -284,5 +308,63 @@ mod tests {
         // Test finishing feature from wrong branch
         repo.set_head("refs/heads/develop").unwrap();
         assert!(agent.finish_feature("test-feature").is_err());
+    }
+
+    #[test]
+    fn test_is_gitflow_branch() {
+        assert!(is_gitflow_branch("feature/test"));
+        assert!(is_gitflow_branch("bugfix/test"));
+        assert!(is_gitflow_branch("hotfix/test"));
+        assert!(is_gitflow_branch("release/test"));
+        assert!(!is_gitflow_branch("main"));
+        assert!(!is_gitflow_branch("develop"));
+        assert!(!is_gitflow_branch("test"));
+    }
+
+    #[test]
+    fn test_validate_branch_name() {
+        assert!(validate_branch_name("feature/test-branch"));
+        assert!(validate_branch_name("bugfix/issue-123"));
+        assert!(validate_branch_name("hotfix/critical-fix"));
+        assert!(validate_branch_name("release/v1.0.0"));
+        assert!(!validate_branch_name("feature/test branch")); // Contains space
+        assert!(!validate_branch_name("feature/test.branch")); // Contains dot
+        assert!(!validate_branch_name("feature/test_branch")); // Contains underscore
+        assert!(!validate_branch_name("invalid/test")); // Invalid prefix
+    }
+
+    #[test]
+    fn test_gitflow_agent() {
+        let dir = tempdir().unwrap();
+        let git_dir = dir.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+
+        env::set_current_dir(dir.path()).unwrap();
+
+        // Initialize git repo
+        std::process::Command::new("git")
+            .args(&["init"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        // Create a GitFlow agent
+        let agent = GitFlowAgent::new(dir.path()).unwrap();
+
+        // Test with invalid branch
+        std::process::Command::new("git")
+            .args(&["checkout", "-b", "main"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        assert!(agent.ensure_gitflow_compliance().is_err());
+
+        // Test with valid branch
+        std::process::Command::new("git")
+            .args(&["checkout", "-b", "feature/test"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        assert!(agent.ensure_gitflow_compliance().is_ok());
     }
 }

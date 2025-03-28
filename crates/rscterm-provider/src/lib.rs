@@ -2,6 +2,7 @@ pub mod lmstudio;
 
 pub use lmstudio::LMStudioProvider;
 use serde::{Deserialize, Serialize};
+use rscterm_core::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LMStudioConfig {
@@ -13,12 +14,6 @@ pub struct LMStudioConfig {
 pub struct LMStudioRequest {
     pub messages: Vec<Message>,
     pub model: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Message {
-    pub role: String,
-    pub content: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

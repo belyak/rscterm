@@ -22,5 +22,5 @@ name = "gitflow-hook"
 path = "src/bin/gitflow-hook.rs"
 
 [dev-dependencies]
-tempfile = "3.10"
-git2 = "0.18"
+tempfile.workspace = true
+git2.workspace = true

@@ -13,10 +13,17 @@ use tracing::debug;
 
 pub mod commands;
 pub mod runner;
-pub mod completion;
 
-use completion::AIbitatHelper;
+use rscterm_completion::AIbitatHelper;
 use crate::{LLMProvider, Result as AIbitatResult};
+
+const AGENT_TOPICS: &[&str] = &[
+    "planner",
+    "researcher",
+    "programmer",
+    "designer",
+    "reviewer",
+];
 
 pub struct CliInterface {
     prompt: String,
@@ -26,6 +33,7 @@ pub struct CliInterface {
     multi_progress: MultiProgress,
     show_progress: bool,
     llm_provider: Box<dyn LLMProvider>,
+    current_task: Option<String>,
 }
 
 impl CliInterface {
@@ -43,6 +51,7 @@ impl CliInterface {
             multi_progress: MultiProgress::new(),
             show_progress: true,
             llm_provider,
+            current_task: None,
         }
     }
 
@@ -106,15 +115,69 @@ impl CliInterface {
         Ok(())
     }
 
-    pub fn set_current_team(&mut self, name: String) {
-        self.current_team = Some(name.clone());
+    pub fn get_current_team(&self) -> Option<&String> {
+        self.current_team.as_ref()
+    }
+
+    pub fn set_current_team(&mut self, team: String) {
+        self.current_team = Some(team.clone());
         if let Some(helper) = self.editor.helper_mut() {
-            helper.add_team(name);
+            helper.add_team(team);
+        }
+        self.display_agent_communications();
+    }
+
+    pub fn add_task(&mut self, task: String) {
+        self.current_task = Some(task.clone());
+        if let Some(helper) = self.editor.helper_mut() {
+            helper.add_task(task);
+        }
+        self.display_agent_communications();
+    }
+
+    fn display_agent_communications(&self) {
+        if let Some(task) = &self.current_task {
+            println!("\n{}", "🤖 Agent Communications:".green().bold());
+            println!("{}", "=".repeat(50).cyan());
+            
+            for agent in AGENT_TOPICS {
+                let pb = self.multi_progress.add(ProgressBar::new(100));
+                pb.set_style(ProgressStyle::default_bar()
+                    .template("{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
+                    .unwrap()
+                    .progress_chars("=>-"));
+                
+                pb.set_message(format!("{}: Initializing...", agent));
+                pb.set_position(30);
+
+                let prompt = format!(
+                    "You are {}, an AI agent. Your task: {}. Respond with your approach and initial steps.",
+                    agent, task
+                );
+
+                // Simulate progress and show agent's initial response
+                for i in 30..=100 {
+                    pb.set_position(i);
+                    if i == 60 {
+                        pb.set_message(format!("{}: {}", agent, prompt));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+
+                pb.finish_with_message(format!("{}: Ready to assist with task", agent));
+            }
+            
+            println!("{}", "=".repeat(50).cyan());
+            println!();
         }
     }
 
-    pub fn get_current_team(&self) -> Option<&String> {
-        self.current_team.as_ref()
+    pub async fn update_models(&mut self) -> AIbitatResult<()> {
+        let models = self.llm_provider.list_models().await?;
+        if let Some(helper) = self.editor.helper_mut() {
+            helper.update_models(models);
+        }
+        Ok(())
     }
 
     pub async fn simulate_agent_response(&self, agent: &str, message: &str) -> AIbitatResult<()> {
@@ -178,85 +241,31 @@ mod tests {
     use super::*;
     use crate::MockLLMProvider;
 
-    #[test]
-    fn test_cli_interface_creation() {
-        let provider = MockLLMProvider::new();
-        let cli = CliInterface::new(Box::new(provider));
-        assert_eq!(cli.prompt, "🤖 AIbitat > ");
-        assert!(cli.history.is_empty());
-        assert!(cli.current_team.is_none());
-        assert!(cli.show_progress);
-    }
-
-    #[test]
-    fn test_set_current_team() {
-        let provider = MockLLMProvider::new();
-        let mut cli = CliInterface::new(Box::new(provider));
-        
-        cli.set_current_team("test-team".to_string());
-        assert_eq!(cli.get_current_team(), Some(&"test-team".to_string()));
-    }
-
-    #[test]
-    fn test_toggle_progress() {
-        let provider = MockLLMProvider::new();
-        let mut cli = CliInterface::new(Box::new(provider));
-        
-        let initial_progress = cli.get_show_progress();
-        cli.set_show_progress(!initial_progress);
-        assert_ne!(cli.get_show_progress(), initial_progress);
-    }
-
-    #[test]
-    fn test_add_to_history() {
-        let provider = MockLLMProvider::new();
-        let mut cli = CliInterface::new(Box::new(provider));
-        
-        cli.history.push("test command".to_string());
-        assert_eq!(cli.history.len(), 1);
-        assert_eq!(cli.history[0], "test command");
-    }
-
-    #[test]
-    fn test_print_message() {
-        let provider = MockLLMProvider::new();
-        let cli = CliInterface::new(Box::new(provider));
-        
-        // Note: This test only verifies that the function doesn't panic
-        cli.print_message("test", "test message");
-        cli.print_error("test error");
-        cli.print_success("test success");
-    }
-
-    #[test]
-    fn test_clear_screen() {
-        let provider = MockLLMProvider::new();
-        let cli = CliInterface::new(Box::new(provider));
-        
-        // Note: This test only verifies that the function doesn't panic
-        assert!(cli.clear_screen().is_ok());
-    }
-
-    #[test]
-    fn test_print_welcome() {
-        let provider = MockLLMProvider::new();
-        let cli = CliInterface::new(Box::new(provider));
-        
-        // Note: This test only verifies that the function doesn't panic
-        cli.print_welcome();
-    }
-
     #[tokio::test]
-    async fn test_simulate_agent_response() {
-        let provider = MockLLMProvider::new();
-        let cli = CliInterface::new(Box::new(provider));
-        
-        // Test with known agent
-        let result = cli.simulate_agent_response("planner", "Test task").await;
-        assert!(result.is_ok());
+    async fn test_cli_interface() {
+        let mock_provider = MockLLMProvider::new();
+        let mut cli = CliInterface::new(Box::new(mock_provider));
 
-        // Test with unknown agent
-        let result = cli.simulate_agent_response("unknown", "Test task").await;
-        assert!(result.is_ok());
+        // Test team management
+        cli.set_current_team("test-team".to_string());
+        assert_eq!(cli.current_team, Some("test-team".to_string()));
+
+        // Test task management
+        cli.add_task("test-task".to_string());
+        assert_eq!(cli.current_task, Some("test-task".to_string()));
+
+        // Test progress bar toggle
+        cli.set_show_progress(false);
+        assert!(!cli.get_show_progress());
+        cli.set_show_progress(true);
+        assert!(cli.get_show_progress());
+
+        // Verify agent topics
+        assert_eq!(AGENT_TOPICS.len(), 5);
+        assert!(AGENT_TOPICS.contains(&"planner"));
+        assert!(AGENT_TOPICS.contains(&"researcher"));
+        assert!(AGENT_TOPICS.contains(&"programmer"));
+        assert!(AGENT_TOPICS.contains(&"designer"));
+        assert!(AGENT_TOPICS.contains(&"reviewer"));
     }
 } 

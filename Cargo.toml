@@ -3,7 +3,8 @@ members = [
     "crates/rscterm-cli",
     "crates/rscterm-core",
     "crates/rscterm-provider",
-    "crates/rscterm-gitflow"
+    "crates/rscterm-gitflow",
+    "crates/rscterm-completion"
 ]
 
 [workspace.dependencies]
@@ -52,6 +53,8 @@ rand = "0.8"
 rscterm-cli = { path = "crates/rscterm-cli" }
 rscterm-provider = { path = "crates/rscterm-provider" }
 rscterm-gitflow = { path = "crates/rscterm-gitflow" }
+rscterm-core = { path = "crates/rscterm-core" }
+rscterm-completion = { path = "crates/rscterm-completion" }
 
 [dev-dependencies]
 tokio-test = "0.4"

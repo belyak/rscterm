@@ -98,17 +98,70 @@ impl LLMProvider for LMStudioProvider {
             )));
         }
 
-        let response_json: serde_json::Value = response.json().await
+        let response_json = response
+            .json::<serde_json::Value>()
+            .await
             .map_err(|e| AIbitatError::LLMError(e.to_string()))?;
+
         let content = response_json
             .get("choices")
             .and_then(|choices| choices.get(0))
             .and_then(|choice| choice.get("message"))
             .and_then(|message| message.get("content"))
             .and_then(|content| content.as_str())
-            .ok_or_else(|| AIbitatError::LLMError("Invalid response format from LM Studio".to_string()))?;
+            .ok_or_else(|| AIbitatError::LLMError("Invalid response format".to_string()))?;
 
         Ok(content.to_string())
+    }
+
+    async fn list_models(&self) -> Result<Vec<String>> {
+        #[cfg(test)]
+        if self.emulate_responses {
+            return Ok(vec![
+                "gemma-3-12b-it".to_string(),
+                "gemma-2b-it".to_string(),
+                "mistral-7b".to_string(),
+                "llama-2-7b".to_string(),
+                "codellama-7b".to_string(),
+            ]);
+        }
+
+        let url = format!("{}/v1/models", self.base_url);
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| AIbitatError::LLMError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(AIbitatError::LLMError(format!(
+                "LM Studio API request failed: {}",
+                response.status()
+            )));
+        }
+
+        let response_json = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| AIbitatError::LLMError(e.to_string()))?;
+
+        let models = response_json
+            .get("data")
+            .and_then(|data| data.as_array())
+            .ok_or_else(|| AIbitatError::LLMError("Invalid response format".to_string()))?;
+
+        let model_names = models
+            .iter()
+            .filter_map(|model| {
+                model
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .map(|s| s.to_string())
+            })
+            .collect();
+
+        Ok(model_names)
     }
 }
 

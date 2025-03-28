@@ -12,6 +12,7 @@ colored = "2.1"
 crossterm = "0.27"
 rscterm-core = { path = "../rscterm-core" }
 rscterm-provider = { path = "../rscterm-provider" }
+rscterm-completion = { path = "../rscterm-completion" }
 ratatui = "0.26"
 chrono = "0.4"
 rustyline = "13.0"

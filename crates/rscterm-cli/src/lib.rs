@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod completion;
 
 use commands::Command;
 use rscterm_core::{Error, Provider};
@@ -12,7 +11,10 @@ use crossterm::{
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
-use crate::completion::AIbitatHelper;
+use rscterm_completion::AIbitatHelper;
+use rustyline::completion::{Completer, Pair};
+use rustyline::Context;
+use rustyline::history::DefaultHistory;
 use std::time::Duration;
 use tokio::time::sleep;
 use rand::Rng;
@@ -57,26 +59,14 @@ impl CliInterface {
         &mut self.provider
     }
 
-    pub fn print_message(&self, sender: &str, message: &str) {
-        let color = match sender {
-            "system" => Color::White,
-            "error" => Color::Red,
-            "success" => Color::Green,
-            "warning" => Color::Yellow,
-            "info" => Color::Blue,
-            _ => Color::White,
-        };
-
-        let prefix = match sender {
-            "system" => "[SYS]",
-            "error" => "[ERR]",
-            "success" => "[OK]",
-            "warning" => "[WARN]",
-            "info" => "[INFO]",
-            _ => "[???]",
-        };
-
-        println!("{} {}", prefix.color(color), message);
+    pub fn print_message(&self, from: &str, content: &str) {
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        println!("{} [{}] {}: {}", 
+            timestamp.cyan(),
+            from.green().bold(),
+            "Message".yellow(),
+            content
+        );
     }
 
     pub fn print_error(&self, message: &str) {
@@ -88,18 +78,15 @@ impl CliInterface {
     }
 
     pub fn clear_screen(&self) -> Result<()> {
-        io::stdout()
-            .execute(Clear(ClearType::All))
-            .map_err(|e| Error::Io(e))?;
+        io::stdout().execute(Clear(ClearType::All))?;
         Ok(())
     }
 
     pub fn print_welcome(&self) {
-        println!("===============================================");
-        println!("              RSC Terminal CLI                  ");
-        println!("===============================================");
-        println!("Type 'help' for available commands");
-        println!("===============================================");
+        println!("{}", "Welcome to AIbitat CLI!".green().bold());
+        println!("{}", "Type 'exit' to quit, 'help' for commands".yellow());
+        println!("{}", "Use TAB for command completion".cyan().italic());
+        println!();
     }
 
     pub async fn simulate_agent_response(&self, agent: &str, message: &str) -> Result<()> {
@@ -164,7 +151,9 @@ impl CliInterface {
 
         let mut input = String::new();
         let mut position = 0;
-        let mut suggestions: Vec<String> = Vec::new();
+        let mut suggestions: Vec<Pair> = Vec::new();
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
 
         loop {
             if let Event::Key(key) = event::read().map_err(|e| Error::Io(e))? {
@@ -179,7 +168,7 @@ impl CliInterface {
                         ..
                     } => {
                         if !suggestions.is_empty() {
-                            input = suggestions[0].clone();
+                            input = suggestions[0].replacement.clone();
                             position = input.len();
                             suggestions.clear();
                         }
@@ -208,7 +197,9 @@ impl CliInterface {
                         if position > 0 {
                             input.remove(position - 1);
                             position -= 1;
-                            suggestions = self.helper.get_completions(&input);
+                            if let Ok((_, comps)) = self.helper.complete(&input, position, &ctx) {
+                                suggestions = comps;
+                            }
                         }
                     }
                     KeyEvent {
@@ -233,7 +224,9 @@ impl CliInterface {
                     } => {
                         input.insert(position, c);
                         position += 1;
-                        suggestions = self.helper.get_completions(&input);
+                        if let Ok((_, comps)) = self.helper.complete(&input, position, &ctx) {
+                            suggestions = comps;
+                        }
                     }
                     _ => {}
                 }
@@ -241,7 +234,11 @@ impl CliInterface {
                 // Clear line and show prompt
                 print!("\r\x1B[K[RSC] > {}", input);
                 if !suggestions.is_empty() {
-                    print!(" [{}]", suggestions.join(", ").blue());
+                    let suggestions_str = suggestions.iter()
+                        .map(|s| s.display.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    print!(" [{}]", suggestions_str.blue());
                 }
                 io::stdout().flush().map_err(|e| Error::Io(e))?;
             }

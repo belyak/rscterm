@@ -139,41 +139,10 @@ impl Command {
                 Ok(true)
             }
             Command::SetupTeam { name, agents } => {
-                if name.is_empty() || agents.is_empty() {
-                    cli.print_error("Usage: setup-team <n> <agent1> <agent2> ...");
-                    cli.print_message("system", "Example: setup-team web-team researcher programmer designer");
-                    Ok(true)
-                } else {
-                    info!("Setting up team '{}' with agents: {:?}", name, agents);
-                    cli.print_success(&format!("Creating team '{}' with agents: {}", name, agents.join(", ")));
-                    cli.set_current_team(name.clone());
-                    
-                    cli.simulate_agent_response("planner", &format!("Setting up team '{}' with {} agents", name, agents.len())).await?;
-                    for agent in agents {
-                        cli.simulate_agent_response(&agent, &format!("Ready to work on team '{}'", name)).await?;
-                    }
-                    
-                    Ok(true)
-                }
+                self.setup_team(cli, &name, agents).await
             }
             Command::StartTask { task } => {
-                if task.is_empty() {
-                    cli.print_error("Usage: start-task <task description>");
-                    cli.print_message("system", "Example: start-task Create a responsive web application");
-                    Ok(true)
-                } else if let Some(_team) = cli.get_current_team() {
-                    info!("Starting task: {}", task);
-                    cli.print_success(&format!("Starting task: {}", task));
-                    
-                    for (agent, msg) in TASK_START_MESSAGES {
-                        cli.simulate_agent_response(agent, msg).await?;
-                    }
-                    
-                    Ok(true)
-                } else {
-                    cli.print_error("No active team. Please create a team first using 'setup-team'");
-                    Ok(true)
-                }
+                self.start_task(cli, &task).await
             }
             Command::ToggleProgress => {
                 let current = cli.get_show_progress();
@@ -250,6 +219,83 @@ impl Command {
             }
         }
     }
+
+    async fn setup_team(&self, cli: &mut super::CliInterface, name: &str, agents: &[String]) -> Result<bool> {
+        if name.is_empty() || agents.is_empty() {
+            cli.print_error("Usage: setup-team <n> <agent1> <agent2> ...");
+            cli.print_message("system", "Example: setup-team web-team researcher programmer designer");
+            Ok(true)
+        } else {
+            info!("Setting up team '{}' with agents: {:?}", name, agents);
+            cli.print_success(&format!("Creating team '{}' with agents: {}", name, agents.join(", ")));
+            cli.set_current_team(name.to_string());
+            
+            // Create a structured prompt for team setup
+            let prompt = format!(
+                "Setting up a new team with the following configuration:\n\
+                Team Name: {}\n\
+                Team Members: {}\n\n\
+                Please provide:\n\
+                1. Team roles and responsibilities\n\
+                2. Communication protocols\n\
+                3. Workflow recommendations\n\
+                4. Best practices for collaboration",
+                name,
+                agents.join(", ")
+            );
+
+            // Get response from LM Studio
+            match cli.get_provider().send_message(&prompt).await {
+                Ok(response) => {
+                    cli.print_message("system", "Team Setup Analysis:");
+                    cli.print_message("system", &response);
+                    Ok(true)
+                }
+                Err(e) => {
+                    cli.print_error(&format!("Failed to get team setup analysis: {}", e));
+                    Ok(true)
+                }
+            }
+        }
+    }
+
+    async fn start_task(&self, cli: &mut super::CliInterface, task: &str) -> Result<bool> {
+        if task.is_empty() {
+            cli.print_error("Usage: start-task <task description>");
+            cli.print_message("system", "Example: start-task Create a responsive web application");
+            Ok(true)
+        } else if let Some(_team) = cli.get_current_team() {
+            info!("Starting task: {}", task);
+            cli.print_success(&format!("Starting task: {}", task));
+            
+            // Create a structured prompt for the task
+            let prompt = format!(
+                "Task: {}\n\nPlease provide a detailed plan for this task, including:\n\
+                1. Requirements analysis\n\
+                2. Technical approach\n\
+                3. Implementation steps\n\
+                4. Testing strategy\n\
+                5. Timeline estimates",
+                task
+            );
+
+            // Get response from LM Studio
+            match cli.get_provider().send_message(&prompt).await {
+                Ok(response) => {
+                    cli.print_message("system", "Task Analysis:");
+                    cli.print_message("system", &response);
+                    Ok(true)
+                }
+                Err(e) => {
+                    cli.print_error(&format!("Failed to get task analysis: {}", e));
+                    Ok(true)
+                }
+            }
+        } else {
+            cli.print_error("No active team. Please create a team first using 'setup-team'");
+            Ok(true)
+        }
+    }
 }
 
 const HELP_MESSAGES: &[(&str, &str)] = &[
@@ -282,14 +328,6 @@ const CHANNEL_DESCRIPTIONS: &[(&str, &str)] = &[
     ("#general", "General discussion"),
     ("#tasks", "Task-related discussions"),
     ("#code", "Code-related discussions"),
-];
-
-const TASK_START_MESSAGES: &[(&str, &str)] = &[
-    ("planner", "Breaking down task"),
-    ("researcher", "Gathering requirements and best practices"),
-    ("designer", "Creating initial design concepts"),
-    ("programmer", "Setting up project structure"),
-    ("reviewer", "Reviewing initial setup"),
 ];
 
 #[cfg(test)]

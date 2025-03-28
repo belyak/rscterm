@@ -1,6 +1,5 @@
 use rscterm_core::error::Result;
-use rscterm_core::{Error, Provider};
-use crate::Message;
+use rscterm_core::{Error, Provider, Message};
 use reqwest::Client;
 use async_trait::async_trait;
 use std::fmt::Debug;
@@ -11,13 +10,15 @@ use super::{LMStudioConfig, LMStudioRequest, LMStudioResponse};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ModelInfo {
-    name: String,
-    description: String,
+    id: String,
+    object: String,
+    owned_by: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ModelsResponse {
-    models: Vec<ModelInfo>,
+    data: Vec<ModelInfo>,
+    object: String,
 }
 
 #[derive(Debug)]
@@ -57,9 +58,9 @@ impl LMStudioProvider {
         }
 
         response
-            .json()
+            .json::<T>()
             .await
-            .map_err(|e| Error::Provider(e.to_string()))
+            .map_err(|e| Error::Provider(format!("error decoding response body: {}", e)))
     }
 
     async fn send_chat_request(&self, request: &LMStudioRequest) -> Result<LMStudioResponse> {
@@ -121,6 +122,9 @@ impl Provider for LMStudioProvider {
     }
 
     async fn set_model(&mut self, model: &str) -> Result<()> {
+        // Fetch available models first
+        self.available_models = self.get_loaded_models().await?;
+        
         if !self.available_models.contains(&model.to_string()) {
             return Err(Error::InvalidModel(model.to_string()));
         }
@@ -132,11 +136,6 @@ impl Provider for LMStudioProvider {
 
     async fn list_models(&self) -> Result<Vec<String>> {
         self.get_loaded_models().await
-    }
-
-    async fn get_loaded_models(&self) -> Result<Vec<String>> {
-        let response: ModelsResponse = self.send_request("/v1/models").await?;
-        Ok(response.models.into_iter().map(|m| m.name).collect())
     }
 
     fn get_current_model(&self) -> String {
@@ -183,6 +182,11 @@ impl Provider for LMStudioProvider {
         
         Ok(())
     }
+
+    async fn get_loaded_models(&self) -> Result<Vec<String>> {
+        let response: ModelsResponse = self.send_request("/v1/models").await?;
+        Ok(response.data.into_iter().map(|m| m.id).collect())
+    }
 }
 
 #[cfg(test)]
@@ -190,14 +194,17 @@ mod tests {
     use super::*;
     use std::time::Duration;
     use tokio::time::sleep;
+    use mockito::mock;
+
+    const TEST_URL: &str = "http://10.6.1.238:1234";
 
     #[tokio::test]
     async fn test_provider_creation() {
         let provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
-        assert_eq!(provider.config.url, "http://localhost:1234");
+        assert_eq!(provider.config.url, TEST_URL);
         assert_eq!(provider.config.model, "test-model");
         assert!(provider.available_models.is_empty());
     }
@@ -205,7 +212,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_models() {
         let provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
         let models = provider.list_models().await;
@@ -215,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_model_validation() {
         let mut provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
 
@@ -235,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn test_model_state_persistence() {
         let mut provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
 
@@ -249,7 +256,7 @@ mod tests {
     #[tokio::test]
     async fn test_concurrent_model_operations() {
         let mut provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
 
@@ -264,7 +271,7 @@ mod tests {
     #[tokio::test]
     async fn test_model_switch_with_delay() {
         let mut provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
 
@@ -286,7 +293,7 @@ mod tests {
     #[test]
     fn test_get_current_model() {
         let provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
         assert_eq!(provider.get_current_model(), "test-model");
@@ -295,11 +302,91 @@ mod tests {
     #[tokio::test]
     async fn test_run_terminal() {
         let mut provider = LMStudioProvider::new(
-            "http://localhost:1234".to_string(),
+            TEST_URL.to_string(),
             "test-model".to_string(),
         );
         
         let result = provider.run_terminal().await;
         assert!(result.is_err()); // Will fail due to no actual server
+    }
+
+    #[tokio::test]
+    async fn test_send_message_error_handling() {
+        let provider = LMStudioProvider::new(
+            TEST_URL.to_string(),
+            "test-model".to_string(),
+        );
+
+        // Test with empty message
+        let result = provider.send_message("").await;
+        assert!(result.is_err());
+
+        // Test with invalid URL
+        let provider = LMStudioProvider::new(
+            "invalid-url".to_string(),
+            "test-model".to_string(),
+        );
+        let result = provider.send_message("test").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_model_error_handling() {
+        let provider = LMStudioProvider::new(
+            TEST_URL.to_string(),
+            "test-model".to_string(),
+        );
+
+        // Test with invalid model
+        let result = provider.prefetch_model("invalid-model").await;
+        assert!(result.is_err());
+
+        // Test with empty model
+        let result = provider.prefetch_model("").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_request_error_handling() {
+        let provider = LMStudioProvider::new(
+            TEST_URL.to_string(),
+            "test-model".to_string(),
+        );
+
+        // Test with invalid endpoint
+        let result: Result<ModelsResponse> = provider.send_request("/invalid-endpoint").await;
+        assert!(result.is_err());
+
+        // Test with invalid URL
+        let provider = LMStudioProvider::new(
+            "invalid-url".to_string(),
+            "test-model".to_string(),
+        );
+        let result: Result<ModelsResponse> = provider.send_request("/v1/models").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_chat_request_error_handling() {
+        let provider = LMStudioProvider::new(
+            TEST_URL.to_string(),
+            "test-model".to_string(),
+        );
+
+        // Test with invalid request
+        let request = LMStudioRequest {
+            messages: vec![],
+            model: "test-model".to_string(),
+        };
+        let result = provider.send_chat_request(&request).await;
+        assert!(result.is_err());
+
+        // Test with invalid URL
+        let provider = LMStudioProvider::new(
+            "invalid-url".to_string(),
+            "test-model".to_string(),
+        );
+        let result = provider.send_chat_request(&request).await;
+        assert!(result.is_err());
     }
 } 

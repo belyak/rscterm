@@ -19,7 +19,7 @@ impl CliRunner {
         );
         #[cfg(not(test))]
         let provider = LMStudioProvider::new(
-            "http://10.6.1.238:1234".to_string(),
+            "http://localhost:1234".to_string(),
             "gemma-3-12b-it".to_string()
         );
         let cli = CliInterface::new(Box::new(provider));
