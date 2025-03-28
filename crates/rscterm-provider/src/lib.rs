@@ -1,11 +1,7 @@
-use rscterm_core::Provider;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-
 pub mod lmstudio;
 
 pub use lmstudio::LMStudioProvider;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LMStudioConfig {

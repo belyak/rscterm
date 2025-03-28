@@ -136,7 +136,7 @@ impl GitFlowAgent {
             GitFlowBranchType::Feature(current_name) if current_name == name => {
                 // Merge into develop
                 let develop = self.repo.find_branch(&self.config.develop_branch, Git2BranchType::Local)?;
-                let develop_commit = develop.get().peel_to_commit()?;
+                let _develop_commit = develop.get().peel_to_commit()?;
                 
                 // TODO: Implement merge logic
                 info!("Finished feature branch: {}", name);
@@ -156,6 +156,35 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    fn setup_test_repo() -> (tempfile::TempDir, Repository) {
+        let temp_dir = tempdir().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+        
+        // Create initial commit
+        let mut index = repo.index().unwrap();
+        index.add_all(["."], git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+        
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        
+        let signature = git2::Signature::now("Test User", "test@example.com").unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "Initial commit",
+            &tree,
+            &[],
+        ).unwrap();
+        
+        // Create develop branch
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("develop", &head, false).unwrap();
+        
+        (temp_dir, repo)
+    }
+
     #[test]
     fn test_branch_validation() {
         let temp_dir = tempdir().unwrap();
@@ -167,5 +196,93 @@ mod tests {
         assert!(agent.validate_branch_name("hotfix/critical-fix").is_ok());
         assert!(agent.validate_branch_name("feature/my_feature").is_ok());
         assert!(agent.validate_branch_name("feature/my.feature").is_ok());
+        assert!(agent.validate_branch_name("feature/my@feature").is_err());
+    }
+
+    #[test]
+    fn test_branch_type_detection() {
+        let (_temp_dir, repo) = setup_test_repo();
+        let agent = GitFlowAgent::new(repo.path()).unwrap();
+
+        // Test master branch
+        repo.set_head("refs/heads/master").unwrap();
+        assert!(matches!(agent.get_current_branch_type().unwrap(), GitFlowBranchType::Master));
+
+        // Test develop branch
+        repo.set_head("refs/heads/develop").unwrap();
+        assert!(matches!(agent.get_current_branch_type().unwrap(), GitFlowBranchType::Develop));
+
+        // Test feature branch
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("feature/test-feature", &head, false).unwrap();
+        repo.set_head("refs/heads/feature/test-feature").unwrap();
+        if let GitFlowBranchType::Feature(name) = agent.get_current_branch_type().unwrap() {
+            assert_eq!(name, "test-feature");
+        } else {
+            panic!("Expected Feature branch type");
+        }
+
+        // Test release branch
+        repo.branch("release/1.0.0", &head, false).unwrap();
+        repo.set_head("refs/heads/release/1.0.0").unwrap();
+        if let GitFlowBranchType::Release(version) = agent.get_current_branch_type().unwrap() {
+            assert_eq!(version, "1.0.0");
+        } else {
+            panic!("Expected Release branch type");
+        }
+
+        // Test hotfix branch
+        repo.branch("hotfix/critical-fix", &head, false).unwrap();
+        repo.set_head("refs/heads/hotfix/critical-fix").unwrap();
+        if let GitFlowBranchType::Hotfix(name) = agent.get_current_branch_type().unwrap() {
+            assert_eq!(name, "critical-fix");
+        } else {
+            panic!("Expected Hotfix branch type");
+        }
+
+        // Test unknown branch
+        repo.branch("random-branch", &head, false).unwrap();
+        repo.set_head("refs/heads/random-branch").unwrap();
+        assert!(matches!(agent.get_current_branch_type().unwrap(), GitFlowBranchType::Unknown));
+    }
+
+    #[test]
+    fn test_gitflow_compliance() {
+        let (_temp_dir, repo) = setup_test_repo();
+        let agent = GitFlowAgent::new(repo.path()).unwrap();
+
+        // Test valid branches
+        repo.set_head("refs/heads/master").unwrap();
+        assert!(agent.ensure_gitflow_compliance().is_ok());
+
+        repo.set_head("refs/heads/develop").unwrap();
+        assert!(agent.ensure_gitflow_compliance().is_ok());
+
+        // Test invalid branch
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("random-branch", &head, false).unwrap();
+        repo.set_head("refs/heads/random-branch").unwrap();
+        assert!(agent.ensure_gitflow_compliance().is_err());
+    }
+
+    #[test]
+    fn test_feature_branch_operations() {
+        let (_temp_dir, repo) = setup_test_repo();
+        let agent = GitFlowAgent::new(repo.path()).unwrap();
+
+        // Test creating feature branch
+        repo.set_head("refs/heads/develop").unwrap();
+        assert!(agent.create_feature("test-feature").is_ok());
+        
+        // Verify branch was created
+        assert!(repo.find_branch("feature/test-feature", Git2BranchType::Local).is_ok());
+
+        // Test finishing feature branch
+        repo.set_head("refs/heads/feature/test-feature").unwrap();
+        assert!(agent.finish_feature("test-feature").is_ok());
+
+        // Test finishing feature from wrong branch
+        repo.set_head("refs/heads/develop").unwrap();
+        assert!(agent.finish_feature("test-feature").is_err());
     }
 }

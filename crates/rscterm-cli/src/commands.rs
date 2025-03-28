@@ -273,7 +273,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aibitatr_provider::LMStudioProvider;
+    use rscterm_provider::LMStudioProvider;
 
     #[test]
     fn test_command_parsing() {
