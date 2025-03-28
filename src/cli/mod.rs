@@ -11,7 +11,6 @@ use rustyline::history::DefaultHistory;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use tracing::debug;
 use std::process::Command;
-use std::fs;
 use std::path::PathBuf;
 
 pub mod commands;
