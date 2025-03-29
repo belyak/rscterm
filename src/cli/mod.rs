@@ -130,12 +130,28 @@ impl CliInterface {
 
     pub fn print_message(&self, from: &str, content: &str) {
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        println!("{} [{}] {}: {}", 
+        let is_agent = AGENT_TOPICS.contains(&from);
+        let party_tag = if is_agent { "[AGENT]".magenta() } else { "[USER]".blue() };
+        let channel = "[channel:main]".yellow();
+        
+        // Truncate content if it's longer than 50 characters
+        let display_content = if content.len() > 50 {
+            format!("{}...", &content[0..50])
+        } else {
+            content.to_string()
+        };
+        
+        println!("{} {} {} [{}]: {}", 
             timestamp.cyan(),
+            channel,
+            party_tag,
             from.green().bold(),
-            "Message".yellow(),
-            content
+            display_content
         );
+    }
+
+    pub fn print_user_message(&self, content: &str) {
+        self.print_message("user", content);
     }
 
     pub fn get_input(&mut self) -> Result<String> {
@@ -317,7 +333,7 @@ impl CliInterface {
 
     fn display_agent_communications(&self) {
         if let Some(task) = &self.current_task {
-            println!("\n{}", "🤖 Agent Communications:".green().bold());
+            println!("\n{} {}", "[channel:agents]".yellow(), "🤖 Agent Communications:".green().bold());
             println!("{}", "=".repeat(50).cyan());
             
             for agent in AGENT_TOPICS {
@@ -339,7 +355,13 @@ impl CliInterface {
                 for i in 30..=100 {
                     pb.set_position(i);
                     if i == 60 {
-                        pb.set_message(format!("{}: {}", agent, prompt));
+                        // Truncate prompt for display
+                        let display_prompt = if prompt.len() > 50 {
+                            format!("{}...", &prompt[0..50])
+                        } else {
+                            prompt.clone()
+                        };
+                        pb.set_message(format!("{}: {}", agent, display_prompt));
                     }
                     std::thread::sleep(std::time::Duration::from_millis(20));
                 }
@@ -383,14 +405,25 @@ impl CliInterface {
             debug!("Received response from LLM: {}", response);
             
             pb.set_position(60);
-            pb.set_message(format!("{}: {}", agent, response));
+            
+            // Truncate response for the progress bar display
+            let display_response = if response.len() > 50 {
+                format!("{}...", &response[0..50])
+            } else {
+                response.clone()
+            };
+            
+            pb.set_message(format!("{}: {}", agent, display_response));
             
             for i in 60..=100 {
                 pb.set_position(i);
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
             
-            pb.finish_with_message(format!("{}: {}", agent, response));
+            pb.finish_with_message(format!("{}: {}", agent, display_response));
+            
+            // Use the updated print_message method for the final display
+            self.print_message(agent, &response);
         } else {
             debug!("Sending request to LLM provider without progress bar");
             let response = self.llm_provider.generate_response(&prompt).await?;
